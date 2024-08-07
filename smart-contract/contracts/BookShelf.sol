@@ -1,19 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-/// Function of the `BookShelf` smart contract
-/// 1. Author publishes book and can add more books
-/// Bounty (?)
-/// 2. Author can sell books
-/// 3. Author can receive funds from buyers of books
-/// 4. There is a limit on how many books are available
-/// 5. Buyers will lose the amount of ETH they have after buying
-
 contract BookShelf {
-    /// This represents the state
-    /// of a book which will be part of
-    /// a `BookMetadata` struct
-    enum BookStatus{
+    enum BookStatus {
         NotAvailable,
         Available
     }
@@ -22,11 +11,6 @@ contract BookShelf {
         address author;
         uint256 bookId;
         uint8 price;
-        // Although we can change this to string,
-        // it is best to know that strings are
-        // computationally expensive in Solidity,
-        // therefore, it is best practice to
-        // convert it to bytes as much as possible
         bytes title;
         bytes author_name;
         bytes published_date;
@@ -35,25 +19,15 @@ contract BookShelf {
         uint256 purchase_counter;
     }
 
-    /// This mapping allows author to point to different books
-    /// they own.
-    /// Maybe author has multiple addresses? Who knows 🤷
     mapping(address => BookMetadata[]) private authorBooks;
+    address payable public author;
 
-    /// The address of the author with payable characteristic
-    /// to allow ETH as payment
-    address payable public  author;
+    event BookPurchased(uint256 bookId, address buyer);
 
-
-    /// A `constructor` is a special function that only runs once
-    /// during contract deployment.
-    constructor() payable  {
+    constructor() payable {
         author = payable(msg.sender);
     }
 
-    /// Very self-explanatory. The `publishBook` function
-    /// allows the author of the smart contract to publish
-    /// more books.
     function publishBook(
         string memory title_,
         string memory content_,
@@ -62,11 +36,9 @@ contract BookShelf {
         uint256 purchase_counter_,
         uint8 price_,
         BookStatus bookstatus_
-    ) external  {
+    ) external {
         require(msg.sender == author, "Only author can publish books");
-        uint256 next_book_id = 0;
-        uint256 number_of_books = authorBooks[author].length;
-        next_book_id = number_of_books + 1;
+        uint256 next_book_id = authorBooks[author].length + 1;
 
         if (purchase_counter_ == 0) {
             bookstatus_ = BookStatus.NotAvailable;
@@ -86,7 +58,34 @@ contract BookShelf {
 
         authorBooks[author].push(book);
     }
+
     function getAuthorBooks() public view returns (BookMetadata[] memory) {
         return authorBooks[author];
+    }
+
+    function buyBook(uint256 bookId) external payable {
+        require(bookId > 0 && bookId <= authorBooks[author].length, "Invalid book ID");
+        BookMetadata storage book = authorBooks[author][bookId - 1];
+        
+        require(book.status == BookStatus.Available, "Book is not available");
+        require(msg.value >= book.price * 1 ether, "Insufficient payment");
+
+        book.purchase_counter--;
+        if (book.purchase_counter == 0) {
+            book.status = BookStatus.NotAvailable;
+        }
+
+        author.transfer(msg.value);
+
+        emit BookPurchased(bookId, msg.sender);
+    }
+
+    function updateBookAvailability(uint256 bookId, uint256 newPurchaseCounter) external {
+        require(msg.sender == author, "Only author can update book availability");
+        require(bookId > 0 && bookId <= authorBooks[author].length, "Invalid book ID");
+
+        BookMetadata storage book = authorBooks[author][bookId - 1];
+        book.purchase_counter = newPurchaseCounter;
+        book.status = newPurchaseCounter > 0 ? BookStatus.Available : BookStatus.NotAvailable;
     }
 }
