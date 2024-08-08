@@ -7,7 +7,7 @@ import {
   prepareContractCall,
   readContract,
 } from "thirdweb";
-import { hardhat } from "thirdweb/chains";
+import { hardhat, sepolia } from "thirdweb/chains";
 import {
   ConnectEmbed,
   ThirdwebProvider,
@@ -29,92 +29,133 @@ const wallets = [
 
 const contract1 = getContract({
   client,
-  chain: hardhat,
-  address: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  chain: sepolia,
+  address: "0x360D70542Fe578A4d614179D71048599C33d3007",
   abi: contractData.abi,
 });
 
-const PurchasedBooks = ({ activeAccount, author }) => {
-	const [purchasedBooks, setPurchasedBooks] = useState([]);
+function PurchasedBook({ bookId, activeAccount }) {
+	const [bookData, setBookData] = useState(null);
   
 	useEffect(() => {
-	  const fetchPurchasedBooks = async () => {
-		if (!activeAccount || activeAccount.address === author) return;
-  
-		const cleanPurchasedBooks = [];
+	  const fetchPurchasedBookData = async () => {
 		try {
-		  // Fetch the author's books to know how many books there are
-		  const authorBooks = await readContract({
+		  const bookMetadata = await readContract({
 			contract: contract1,
-			method: 'getAuthorBooks',
+			method: "getPurchasedBookData",
+			params: [bookId], // Pass the bookId as an argument
 		  });
-
-		  // Loop through each book ID, incrementing by 1 or 2
-		  for (let i = 0; i < authorBooks.length; i += 1) {
-			const bookId = i+1;
-  
-			try {
-			  const book = await readContract({
-				contract: contract1,
-				method: 'getPurchasedBookData',
-				params: [bookId],
-			  });
-  
-  				console.log(bookId,book)
-			  // Check if the book data returned is valid
-			  if (isValidBook(book)) {
-				const title = decodeBytes(book.title);
-				const content = decodeBytes(book.content);
-				const date = decodeBytes(book.published_date);
-				const authorName = decodeBytes(book.author_name);
-				const price = book.price.toString();
-				const status = book.status === 1 ? 'Available' : 'Not Available';
-  
-				cleanPurchasedBooks.push(
-				  <li key={bookId}>
-					<h2>{title}</h2>
-					<details>
-					  <summary>Content</summary>
-					  <time dateTime={date}>Published on {date}</time>
-					  <p>Author: {authorName}</p>
-					  <p>Pricing: ${price}</p>
-					  <p>{content}</p>
-					</details>
-					<p>Status: {status}</p>
-				  </li>
-				);
-			  }
-  
-			} catch (error) {
-			  // This might be a book that wasn't purchased by the user
-			  console.warn(`Book with ID ${bookId} might not have been purchased by the user.`);
-			}
-		  }
-  
-		  setPurchasedBooks(cleanPurchasedBooks);
+		  console.log(bookMetadata, activeAccount.address)
+		  setBookData(bookMetadata);
 		} catch (error) {
-		  console.error('Error fetching purchased books:', error);
+		  console.error("Error fetching book data:", error);
 		}
 	  };
   
-	  fetchPurchasedBooks();
-	}, [activeAccount, author]);
+	  fetchPurchasedBookData();
+	}, [bookId]);
   
-	function decodeBytes(bytesData) {
-	  return Buffer.from(bytesData.slice(2), 'hex').toString();
+	if (!bookData) {
+	  return <div>Loading...</div>;
 	}
   
-	function isValidBook(book) {
-	  return book && book.author !== '0x0000000000000000000000000000000000000000' && book.title && book.title.length > 0;
-	}
+	const decodeBytes = (bytesData) => {
+		return Buffer.from(bytesData.slice(2), 'hex').toString();
+	  };
+	
+	  return (
+		<div>
+		  <h2>Book Title: {decodeBytes(bookData.title)}</h2>
+		  <p>Author: {decodeBytes(bookData.author_name)}</p>
+		  <p>Published on: {decodeBytes(bookData.published_date)}</p>
+		  <p>Content: {decodeBytes(bookData.content)}</p>
+		  <p>Price: {bookData.price} ETH</p>
+		  <p>Status: {bookData.status === 1 ? "Available" : "Not Available"}</p>
+		</div>
+	  );
+  }
+
+// const PurchasedBooks = ({ activeAccount, author }) => {
+// 	const [purchasedBooks, setPurchasedBooks] = useState([]);
   
-	return (
-	  <div>
-		<h1>Purchased Books</h1>
-		<ul>{purchasedBooks.length > 0 ? purchasedBooks : <p>No books purchased yet.</p>}</ul>
-	  </div>
-	);
-  };
+// 	useEffect(() => {
+// 	  const fetchPurchasedBooks = async () => {
+// 		if (!activeAccount || activeAccount.address === author) return;
+  
+// 		const cleanPurchasedBooks = [];
+// 		try {
+// 		  // Fetch the author's books to know how many books there are
+// 		  const authorBooks = await readContract({
+// 			contract: contract1,
+// 			method: 'getAuthorBooks',
+// 		  });
+
+// 		  // Loop through each book ID, incrementing by 1 or 2
+// 		  for (let i = 0; i < authorBooks.length; i += 1) {
+// 			const bookId = i+1;
+  
+// 			try {
+// 			  const book = prepareContractCall({
+// 				contract: contract1,
+// 				method: 'getPurchasedBookData',
+// 				params: [bookId],
+// 			  });
+  
+//   				console.log(bookId,book)
+// 			  // Check if the book data returned is valid
+// 			  if (isValidBook(book)) {
+// 				const title = decodeBytes(book.title);
+// 				const content = decodeBytes(book.content);
+// 				const date = decodeBytes(book.published_date);
+// 				const authorName = decodeBytes(book.author_name);
+// 				const price = book.price.toString();
+// 				const status = book.status === 1 ? 'Available' : 'Not Available';
+  
+// 				cleanPurchasedBooks.push(
+// 				  <li key={bookId}>
+// 					<h2>{title}</h2>
+// 					<details>
+// 					  <summary>Content</summary>
+// 					  <time dateTime={date}>Published on {date}</time>
+// 					  <p>Author: {authorName}</p>
+// 					  <p>Pricing: ${price}</p>
+// 					  <p>{content}</p>
+// 					</details>
+// 					<p>Status: {status}</p>
+// 				  </li>
+// 				);
+// 			  }
+  
+// 			} catch (error) {
+// 			  // This might be a book that wasn't purchased by the user
+// 			  console.warn(`Book with ID ${bookId} might not have been purchased by the user.`);
+// 			}
+// 		  }
+  
+// 		  setPurchasedBooks(cleanPurchasedBooks);
+// 		} catch (error) {
+// 		  console.error('Error fetching purchased books:', error);
+// 		}
+// 	  };
+  
+// 	  fetchPurchasedBooks();
+// 	}, [activeAccount, author]);
+  
+// 	function decodeBytes(bytesData) {
+// 	  return Buffer.from(bytesData.slice(2), 'hex').toString();
+// 	}
+  
+// 	function isValidBook(book) {
+// 	  return book && book.author !== '0x0000000000000000000000000000000000000000' && book.title && book.title.length > 0;
+// 	}
+  
+// 	return (
+// 	  <div>
+// 		<h1>Purchased Books</h1>
+// 		<ul>{purchasedBooks.length > 0 ? purchasedBooks : <p>No books purchased yet.</p>}</ul>
+// 	  </div>
+// 	);
+//   };
 
 const BookList = ({ isPublishTransacted, author, activeAccount }) => {
   const [bookList, setBookList] = useState([]);
@@ -312,7 +353,7 @@ const PublishBook = ({ author }) => {
           author={author}
           activeAccount={activeAccount}
         />
-        <PurchasedBooks activeAccount={activeAccount} author={author} />
+        
       </>
     );
   }
@@ -447,12 +488,13 @@ const AppBase = () => {
     <div className="container">
       <AdditionalInfo author={author} activeAccount={activeAccount} />
       <ConnectEmbed
-        chain={hardhat}
+        chain={sepolia}
         modalSize={"wide"}
         client={client}
         wallets={wallets}
       />
       <PublishBook author={author} />
+	  <PurchasedBook bookId={1} activeAccount={activeAccount} />
     </div>
   );
 };
